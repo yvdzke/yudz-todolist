@@ -123,28 +123,51 @@ router.post("/tasks", authorization, async (req, res) => {
 });
 
 // Edit Task
+// EDIT TASK (DEBUG VERSION)
 router.put("/tasks/:id", authorization, async (req, res) => {
   try {
     const { id } = req.params;
+    // Ambil data dari body
     const { task_name, category, task_date, is_completed } = req.body;
+    const userId = req.user.user_id; // Pastikan sesuai middleware kamu
+
+    console.log("=== REQUEST MASUK ===");
+    console.log("Task ID:", id);
+    console.log("User ID:", userId);
+    console.log("Data diterima:", req.body);
+
+    // 1. FIX FORMAT TANGGAL
+    // Kalau frontend kirim string kosong "", ubah jadi null
+    let finalDate = task_date;
+    if (task_date === "" || task_date === "undefined") {
+      finalDate = null;
+    }
+
+    // 2. FIX FORMAT BOOLEAN (CHECKBOX)
+    // Paksa jadi true/false beneran
+    let finalStatus = is_completed;
+    if (finalStatus === "true" || finalStatus === 1) finalStatus = true;
+    if (finalStatus === "false" || finalStatus === 0) finalStatus = false;
+
+    console.log("Status yang akan disimpan:", finalStatus);
+
+    // 3. JALANKAN QUERY
     const updateTask = await pool.query(
       "UPDATE tasks SET task_name = $1, category = $2, task_date = $3, is_completed = $4 WHERE task_id = $5 AND user_id = $6 RETURNING *",
-      [
-        task_name,
-        category,
-        task_date || null,
-        is_completed,
-        id,
-        req.user.user_id,
-      ],
+      [task_name, category, finalDate, finalStatus, id, userId],
     );
 
-    if (updateTask.rows.length === 0) {
-      return res.json("Task tidak ditemukan atau bukan milikmu!");
+    console.log("Hasil Query Row Count:", updateTask.rowCount);
+
+    if (updateTask.rowCount === 0) {
+      console.log("❌ GAGAL: Task tidak ditemukan atau User ID tidak cocok.");
+      return res.status(404).json("Task tidak ditemukan atau bukan milikmu!");
     }
+
+    console.log("✅ SUKSES: Data berhasil diupdate di database.");
     res.json("Task updated!");
   } catch (err) {
-    console.error(err.message);
+    console.error("❌ ERROR SERVER:", err.message);
     res.status(500).json("Server Error");
   }
 });
