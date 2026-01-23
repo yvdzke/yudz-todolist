@@ -123,51 +123,44 @@ router.post("/tasks", authorization, async (req, res) => {
 });
 
 // Edit Task
-// EDIT TASK (DEBUG VERSION)
 router.put("/tasks/:id", authorization, async (req, res) => {
   try {
     const { id } = req.params;
-    // Ambil data dari body
     const { task_name, category, task_date, is_completed } = req.body;
-    const userId = req.user.user_id; // Pastikan sesuai middleware kamu
 
-    console.log("=== REQUEST MASUK ===");
-    console.log("Task ID:", id);
-    console.log("User ID:", userId);
-    console.log("Data diterima:", req.body);
+    // --- PERBAIKAN 1: Log Data Masuk (Biar kelihatan di terminal) ---
+    console.log(
+      `[UPDATE] ID: ${id} | Completed: ${is_completed} | Date: ${task_date}`,
+    );
 
-    // 1. FIX FORMAT TANGGAL
-    // Kalau frontend kirim string kosong "", ubah jadi null
+    // --- PERBAIKAN 2: Tangani Tanggal Kosong ---
+    // Kalau task_date kosong/undefined, ubah jadi NULL biar PostgreSQL gak error
     let finalDate = task_date;
-    if (task_date === "" || task_date === "undefined") {
+    if (!task_date || task_date === "" || task_date === "undefined") {
       finalDate = null;
     }
 
-    // 2. FIX FORMAT BOOLEAN (CHECKBOX)
-    // Paksa jadi true/false beneran
+    // --- PERBAIKAN 3: Tangani Boolean Checkbox ---
+    // Pastikan status jadi boolean true/false beneran
     let finalStatus = is_completed;
     if (finalStatus === "true" || finalStatus === 1) finalStatus = true;
     if (finalStatus === "false" || finalStatus === 0) finalStatus = false;
 
-    console.log("Status yang akan disimpan:", finalStatus);
-
-    // 3. JALANKAN QUERY
+    // --- QUERY SQL ---
     const updateTask = await pool.query(
       "UPDATE tasks SET task_name = $1, category = $2, task_date = $3, is_completed = $4 WHERE task_id = $5 AND user_id = $6 RETURNING *",
-      [task_name, category, finalDate, finalStatus, id, userId],
+      [task_name, category, finalDate, finalStatus, id, req.user.user_id],
     );
 
-    console.log("Hasil Query Row Count:", updateTask.rowCount);
-
-    if (updateTask.rowCount === 0) {
-      console.log("❌ GAGAL: Task tidak ditemukan atau User ID tidak cocok.");
-      return res.status(404).json("Task tidak ditemukan atau bukan milikmu!");
+    if (updateTask.rows.length === 0) {
+      console.log("❌ Gagal: Task gak ketemu atau salah user.");
+      return res.status(404).json("Task tidak ditemukan");
     }
 
-    console.log("✅ SUKSES: Data berhasil diupdate di database.");
+    console.log("✅ Sukses Update Database!");
     res.json("Task updated!");
   } catch (err) {
-    console.error("❌ ERROR SERVER:", err.message);
+    console.error("❌ ERROR SQL:", err.message); // <--- LIHAT INI DI TERMINAL
     res.status(500).json("Server Error");
   }
 });
